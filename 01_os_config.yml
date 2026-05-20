@@ -1,0 +1,269 @@
+---
+
+- name: 'Disable firewalld Servicess'
+  service:
+    name: "firewalld"
+    state: stopped
+    enabled: no
+  become: true
+
+- name: find the size of log lvm
+  shell: "df -h | grep rootvg-log | awk '{print $2}' | sed 's/G//g'"
+  register: log_size
+
+- name: Extend the logical volume to 10GB.
+  shell: lvextend -L 10G /dev/rootvg/log
+  become: true
+  when: "{{ log_size.stdout | int }} < 10"
+
+- name: lvextend is not needed
+  debug:
+    msg: "LVEXTEND is not needed as logvg size is {{ log_size.stdout | int }}G"
+  when: "{{ log_size.stdout | int }} >= 10"
+
+- name: xfs growfs for log vg
+  filesystem:
+    fstype: xfs
+    dev: /dev/rootvg/log
+  become: true
+  when: "{{ log_size.stdout | int }} < 10"
+
+- name: Extend the logical volume to 10GB.
+  shell: xfs_growfs /dev/rootvg/log
+  become: true
+  when: "{{ log_size.stdout | int }} < 10"
+
+- name: find the size of root lvm
+  shell: "df -h | grep rootvg-root | awk '{print $2}' | sed 's/G//g'"
+  register: root_size
+
+- name: Extend the logical volume to 6GB.
+  shell: lvextend -L 10G /dev/rootvg/root
+  become: true
+  when: "{{ root_size.stdout | int }} < 10"
+
+- name: lvextend is not needed
+  debug:
+    msg: "LVEXTEND is not needed as rootvg size is {{ root_size }}"
+  when: "{{ root_size.stdout | int }} >= 10"
+
+- name: xfs growfs
+  filesystem:
+    fstype: xfs
+    dev: /dev/rootvg/root
+  become: true
+  when: "{{ root_size.stdout | int }} < 10"
+
+- name: Extend the logical volume to 6GB.
+  shell: xfs_growfs /dev/rootvg/root
+  become: true
+  when: "{{ root_size.stdout | int }} < 10"
+
+- name: Change ownership and permission for u01
+  file:
+    path: /u01
+    owner: postgres
+    group: postgres
+    mode: 0+x
+  become: true
+
+- name: Create a directory if it does not exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0775'
+    owner: postgres
+    group: postgres
+    recurse: yes
+  with_items:
+    - /home/postgres/bin/
+    - /home/postgres/bin/cfg
+    - "/u01/{{ cluster_name }}/archive"
+  become: true
+  ignore_errors: true
+
+- name: Create a directory if it does not exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0700'
+    owner: postgres
+    group: postgres
+    recurse: yes
+  with_items:
+    - "/u01/{{ cluster_name }}/pgdata"
+  become: true
+
+- name: restarting postgresql
+  service:
+    name: rsyslog
+    enabled: yes
+    state: stopped
+  become: yes
+  register: service_out
+
+- name: installing ODBC backup
+  yum:
+    name: "unixODBC"
+    state: present
+  become: yes
+  ignore_errors: true
+  register: msg_out
+
+- name: create var/pg_files dir
+  become: true
+  copy:
+    src: 'rsyslog_postgresql.conf'
+    dest: '/etc/rsyslog.d/postgresql.conf'
+    mode: '0644'
+
+- name: restarting postgresql
+  service:
+    name: rsyslog
+    enabled: yes
+    state: restarted
+  become: yes
+  register: service_out
+
+- name: set error msg
+  set_fact:
+    hdnErrorDescription_awx: "failed to restart rsyslog"
+  when: service_out is failed
+
+- name: "Fail the task "
+  fail:
+    msg: failed to restart rsyslog
+  when: service_out is failed
+
+- name: copy all required packages and scripts on PostgreSQL server
+  become: true
+  copy:
+    src: "{{ item }}"
+    dest: '/u01/app/postgres/'
+    mode: '0775'
+  with_items:
+    - "lza-1.8.3-3.el8.x86_64.rpm"
+    - "openldap-clients-2.4.46-18.el8.x86_64.rpm"
+
+- name: validating the SSSD file
+  shell: cat /etc/sssd/sssd.conf | grep -w "default_domain_suffix=balgroupit.com"
+  register: sssd_out
+  ignore_errors: true
+  become: true
+
+- name: SSSD File check
+  lineinfile:
+    path: /etc/sssd/sssd.conf
+    insertafter: '^\[sssd\]'
+    line: 'default_domain_suffix=balgroupit.com'
+  when: sssd_out.stdout == ""
+  become: true
+
+- name: validating the SSSD file
+  shell: cat /etc/sssd/sssd.conf | grep -w "domain_resolution_order=balgroupit.com, linux1.balgroupit.com"
+  register: sssd_out1
+  ignore_errors: true
+  become: true
+
+- name: SSSD File check
+  lineinfile:
+    path: /etc/sssd/sssd.conf
+    insertafter: '^\[sssd\]'
+    line: 'domain_resolution_order=balgroupit.com, linux1.balgroupit.com'
+  when: sssd_out1.stdout == ""
+  become: true
+
+- name: KRB5 File check
+  lineinfile:
+    path: /etc/krb5.conf.d/kcm_default_ccache
+    regexp: 'default_ccache_name'
+    line: 'default_ccache_name = KEYRING:'
+    backrefs: yes
+  become: true
+
+- name: Stop and disable SSSD-KCM service and socket
+  service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: no
+  become: true
+  with_items:
+    - sssd-kcm.service
+    - sssd-kcm.socket
+
+- name: cleaning SSSD cache
+  shell: "kdestroy -A && sss_cache -E"
+  become: true
+
+- name: Restarting the sssd service
+  service:
+    name: sssd
+    state: restarted
+  become: true
+
+- name: update systemctl file
+  shell: "echo 'vm.overcommit_memory=2' > /etc/sysctl.conf "
+  become: true
+
+- name: change permission of selinux to permissive
+  become: true
+  lineinfile:
+    path: /etc/selinux/config
+    regexp: "^SELINUX="
+    line: "SELINUX=permissive"
+
+- name: enable grub level chnages
+  shell: "setenforce 0 "
+  become: true
+  ignore_errors: true
+
+- name: Task name
+  stat:
+    path: '~/.bash_profile'
+  register: register_bashrc
+  become_user: postgres
+  become: true
+
+- name: Copy a "sudoers" file on the remote machine for editing
+  copy:
+    src: /etc/skel/.bash*
+    dest: '~'
+    remote_src: yes
+  when: not register_bashrc.stat.exists
+  become_user: postgres
+
+- name: Copy bash hidden files if it does not exists
+  copy:
+    src: /etc/skel/.bashrc
+    dest: '~/.bashrc'
+    remote_src: yes
+  when: not register_bashrc.stat.exists
+  become_user: postgres
+  become: true
+
+- name: add export path in the bash file /u01/app/postgres/pgsql-14/bin
+  become: true
+  lineinfile:
+    path: '~/.bash_profile'
+    line: 'export PATH=$PATH:/u01/app/postgres/pgsql-{{ pg_version }}/bin'
+  become_user: postgres
+
+- name: Creating a postgres group
+  group:
+    name: postgres
+    state: present
+    gid: 909
+  register: postgresgroup
+  ignore_errors: true
+
+- name: Adding the postgres user with specific uid and gid
+  user:
+    name: postgres
+    shell: /bin/bash
+    home: /home/postgres
+    uid: 909
+    group: postgres
+    skeleton: /etc/skel
+  register: postgresuser
+  ignore_errors: true
+  become: true
