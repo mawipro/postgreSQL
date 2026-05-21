@@ -1,6 +1,6 @@
 ---
 - name: 'PostgreSQL 17 Pre-Installation & OS Hardening'
-  hosts: all
+  hosts: rhel_servers
   become: true
   vars:
     pg_version: "17"
