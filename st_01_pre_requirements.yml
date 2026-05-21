@@ -11,17 +11,17 @@
   tasks:
     # 1. IDENTITY & USER SETUP (Moved to top to prevent permission errors)
     - name: Set system hostname
-      hostname:
+      ansible.builtin.hostname:
         name: "{{ ansible_hostname }}.{{ domain_name }}"
 
     - name: Creating a postgres group
-      group:
+      ansible.builtin.group:
         name: postgres
         state: present
         gid: 909
 
     - name: Adding the postgres user with specific uid and gid
-      user:
+      ansible.builtin.user:
         name: postgres
         shell: /bin/bash
         home: /home/postgres
@@ -32,20 +32,20 @@
     # 2. FIREWALL & SECURITY
     # Instead of disabling, we allow the DB port to keep it secure
     - name: Ensure firewalld is running
-      service:
+      ansible.builtin.service:
         name: firewalld
         state: started
         enabled: yes
 
     - name: Allow PostgreSQL port (5432)
-      firewalld:
+      ansible.posix.firewalld:
         port: 5432/tcp
         permanent: yes
         state: enabled
         immediate: yes
 
     - name: Change SELinux to permissive
-      selinux:
+      ansible.posix.selinux:
         policy: targeted
         state: permissive
 
@@ -69,7 +69,7 @@
 
   #   # 4. DIRECTORY STRUCTURE
   #   - name: Create u01 and set ownership
-  #     file:
+  #     ansible.builtin.file:
   #       path: /u01
   #       state: directory
   #       owner: postgres
@@ -77,7 +77,7 @@
   #       mode: '0755'
 
   #   - name: Create directory structure for PG Data and Archive
-  #     file:
+  #     ansible.builtin.file:
   #       path: "{{ item }}"
   #       state: directory
   #       mode: '0700'
@@ -91,7 +91,7 @@
 
   #   # 5. OS TUNING & LOGGING
   #   - name: Update rsyslog for PostgreSQL
-  #     copy:
+  #     ansible.builtin.copy:
   #       content: |
   #         local0.*    /var/log/postgres.log
   #       dest: /etc/rsyslog.d/postgresql.conf
@@ -99,7 +99,7 @@
   #     notify: restart rsyslog
 
   #   - name: Set overcommit_memory kernel parameter
-  #     sysctl:
+  #     ansible.posix.sysctl:
   #       name: vm.overcommit_memory
   #       value: '2'
   #       state: present
@@ -107,12 +107,12 @@
 
   #   # 6. USER ENVIRONMENT SETUP
   #   - name: Check for .bash_profile
-  #     stat:
+  #     ansible.builtin.stat:
   #       path: '/home/postgres/.bash_profile'
   #     register: register_bash_profile
 
   #   - name: Copy bash skeleton files if missing
-  #     copy:
+  #     ansible.builtin.copy:
   #       src: "/etc/skel/{{ item }}"
   #       dest: "/home/postgres/{{ item }}"
   #       remote_src: yes
@@ -124,7 +124,7 @@
   #     when: not register_bash_profile.stat.exists
 
   #   - name: Add PG binaries to PATH in .bash_profile
-  #     lineinfile:
+  #     ansible.builtin.lineinfile:
   #       path: '/home/postgres/.bash_profile'
   #       line: 'export PATH=$PATH:/usr/pgsql-{{ pg_version }}/bin'
   #       insertafter: EOF
@@ -132,6 +132,6 @@
 
   # handlers:
   #   - name: restart rsyslog
-  #     service:
+  #     ansible.builtin.service:
   #       name: rsyslog
   #       state: restarted
