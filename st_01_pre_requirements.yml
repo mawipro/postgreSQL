@@ -3,6 +3,7 @@
   hosts: rhel_servers
   become: true
   vars:
+    ansible_python_interpreter: /usr/bin/python3.12
     pg_version: "17"
     cluster_name: "main"
     domain_name: "sdxtest.local"
@@ -52,7 +53,7 @@
     # This replaces the shell/grep/awk commands with a single idempotent module
     - name: "Extend Root LV to 10GB if needed"
       community.general.lvol:
-        vg: rootvg
+        vg: rhel_rhel8
         lv: root
         size: 10G
         resizefs: yes
@@ -60,7 +61,7 @@
 
     - name: "Extend Log LV to 5GB if needed"
       community.general.lvol:
-        vg: rootvg
+        vg: rhel_rhel8
         lv: log
         size: 5G
         resizefs: yes
