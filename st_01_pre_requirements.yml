@@ -105,30 +105,30 @@
         state: present
         reload: yes
 
-  #   # 6. USER ENVIRONMENT SETUP
-  #   - name: Check for .bash_profile
-  #     ansible.builtin.stat:
-  #       path: '/home/postgres/.bash_profile'
-  #     register: register_bash_profile
+    # 6. USER ENVIRONMENT SETUP
+    - name: Check for .bash_profile
+      ansible.builtin.stat:
+        path: '/home/postgres/.bash_profile'
+      register: register_bash_profile
 
-  #   - name: Copy bash skeleton files if missing
-  #     ansible.builtin.copy:
-  #       src: "/etc/skel/{{ item }}"
-  #       dest: "/home/postgres/{{ item }}"
-  #       remote_src: yes
-  #       owner: postgres
-  #       group: postgres
-  #     with_items:
-  #       - .bash_profile
-  #       - .bashrc
-  #     when: not register_bash_profile.stat.exists
+    - name: Copy bash skeleton files if missing
+      ansible.builtin.copy:
+        src: "/etc/skel/{{ item }}"
+        dest: "/home/postgres/{{ item }}"
+        remote_src: yes
+        owner: postgres
+        group: postgres
+      with_items:
+        - .bash_profile
+        - .bashrc
+      when: not register_bash_profile.stat.exists
 
-  #   - name: Add PG binaries to PATH in .bash_profile
-  #     ansible.builtin.lineinfile:
-  #       path: '/home/postgres/.bash_profile'
-  #       line: 'export PATH=$PATH:/usr/pgsql-{{ pg_version }}/bin'
-  #       insertafter: EOF
-  #     become_user: postgres
+    - name: Add PG binaries to PATH in .bash_profile
+      ansible.builtin.lineinfile:
+        path: '/home/postgres/.bash_profile'
+        line: 'export PATH=$PATH:/usr/pgsql-{{ pg_version }}/bin'
+        insertafter: EOF
+      become_user: postgres
 
   handlers:
     - name: restart rsyslog
