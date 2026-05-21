@@ -89,21 +89,21 @@
         - "/u01/{{ cluster_name }}/pgdata"
         - "/home/postgres/bin/cfg"
 
-  #   # 5. OS TUNING & LOGGING
-  #   - name: Update rsyslog for PostgreSQL
-  #     ansible.builtin.copy:
-  #       content: |
-  #         local0.*    /var/log/postgres.log
-  #       dest: /etc/rsyslog.d/postgresql.conf
-  #       mode: '0644'
-  #     notify: restart rsyslog
+    # 5. OS TUNING & LOGGING
+    - name: Update rsyslog for PostgreSQL
+      ansible.builtin.copy:
+        content: |
+          local0.*    /var/log/postgres.log
+        dest: /etc/rsyslog.d/postgresql.conf
+        mode: '0644'
+      notify: restart rsyslog
 
-  #   - name: Set overcommit_memory kernel parameter
-  #     ansible.posix.sysctl:
-  #       name: vm.overcommit_memory
-  #       value: '2'
-  #       state: present
-  #       reload: yes
+    - name: Set overcommit_memory kernel parameter
+      ansible.posix.sysctl:
+        name: vm.overcommit_memory
+        value: '2'
+        state: present
+        reload: yes
 
   #   # 6. USER ENVIRONMENT SETUP
   #   - name: Check for .bash_profile
