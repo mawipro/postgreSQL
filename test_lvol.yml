@@ -1,0 +1,18 @@
+---
+- name: Test lvol module resolution
+  hosts: rhel_servers
+  become: true
+
+  tasks:
+    - name: "Test Extend Log LV to 5GB (to see if lvol module is found)"
+      community.general.lvol:
+        vg: rootvg
+        lv: log
+        size: 5G
+        resizefs: yes
+      ignore_errors: true
+      register: lvol_test
+
+    - name: Display test result
+      debug:
+        msg: "The lvol module ran! Changed status: {{ lvol_test.changed | default('Failed or unknown') }}"
