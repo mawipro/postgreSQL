@@ -126,7 +126,8 @@
     - name: Add PG binaries to system-wide PATH
       ansible.builtin.copy:
         dest: /etc/profile.d/postgres.sh
-        content: 'export PATH=$PATH:/usr/pgsql-{{ pg_version }}/bin\n'
+        content: >
+          export PATH=$PATH:/usr/pgsql-{{ pg_version }}/bin
         mode: '0644'
 
   handlers:
