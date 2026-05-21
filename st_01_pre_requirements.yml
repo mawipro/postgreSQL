@@ -130,8 +130,8 @@
   #       insertafter: EOF
   #     become_user: postgres
 
-  # handlers:
-  #   - name: restart rsyslog
-  #     ansible.builtin.service:
-  #       name: rsyslog
-  #       state: restarted
+  handlers:
+    - name: restart rsyslog
+      ansible.builtin.service:
+        name: rsyslog
+        state: restarted
