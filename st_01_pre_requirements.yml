@@ -1,0 +1,136 @@
+---
+- name: 'PostgreSQL 17 Pre-Installation & OS Hardening'
+  hosts: all
+  become: true
+  vars:
+    pg_version: "17"
+    cluster_name: "main"
+    domain_name: "sdxtest.local"
+
+  tasks:
+    # 1. IDENTITY & USER SETUP (Moved to top to prevent permission errors)
+    - name: Set system hostname
+      hostname:
+        name: "{{ ansible_hostname }}.{{ domain_name }}"
+
+    - name: Creating a postgres group
+      group:
+        name: postgres
+        state: present
+        gid: 909
+
+    - name: Adding the postgres user with specific uid and gid
+      user:
+        name: postgres
+        shell: /bin/bash
+        home: /home/postgres
+        uid: 909
+        group: postgres
+        skeleton: /etc/skel
+
+    # 2. FIREWALL & SECURITY
+    # Instead of disabling, we allow the DB port to keep it secure
+    - name: Ensure firewalld is running
+      service:
+        name: firewalld
+        state: started
+        enabled: yes
+
+    - name: Allow PostgreSQL port (5432)
+      firewalld:
+        port: 5432/tcp
+        permanent: yes
+        state: enabled
+        immediate: yes
+
+    - name: Change SELinux to permissive
+      selinux:
+        policy: targeted
+        state: permissive
+
+    # 3. STORAGE & LVM MANAGEMENT (Optimized Check and Extend)
+    # This replaces the shell/grep/awk commands with a single idempotent module
+    - name: "Extend Root LV to 10GB if needed"
+      lvol:
+        vg: rootvg
+        lv: root
+        size: 10G
+        resizefs: yes
+      ignore_errors: true
+
+    - name: "Extend Log LV to 5GB if needed"
+      lvol:
+        vg: rootvg
+        lv: log
+        size: 5G
+        resizefs: yes
+      ignore_errors: true
+
+    # 4. DIRECTORY STRUCTURE
+    - name: Create u01 and set ownership
+      file:
+        path: /u01
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0755'
+
+    - name: Create directory structure for PG Data and Archive
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0700'
+        owner: postgres
+        group: postgres
+        recurse: yes
+      with_items:
+        - "/u01/{{ cluster_name }}/archive"
+        - "/u01/{{ cluster_name }}/pgdata"
+        - "/home/postgres/bin/cfg"
+
+    # 5. OS TUNING & LOGGING
+    - name: Update rsyslog for PostgreSQL
+      copy:
+        content: |
+          local0.*    /var/log/postgres.log
+        dest: /etc/rsyslog.d/postgresql.conf
+        mode: '0644'
+      notify: restart rsyslog
+
+    - name: Set overcommit_memory kernel parameter
+      sysctl:
+        name: vm.overcommit_memory
+        value: '2'
+        state: present
+        reload: yes
+
+    # 6. USER ENVIRONMENT SETUP
+    - name: Check for .bash_profile
+      stat:
+        path: '/home/postgres/.bash_profile'
+      register: register_bash_profile
+
+    - name: Copy bash skeleton files if missing
+      copy:
+        src: "/etc/skel/{{ item }}"
+        dest: "/home/postgres/{{ item }}"
+        remote_src: yes
+        owner: postgres
+        group: postgres
+      with_items:
+        - .bash_profile
+        - .bashrc
+      when: not register_bash_profile.stat.exists
+
+    - name: Add PG binaries to PATH in .bash_profile
+      lineinfile:
+        path: '/home/postgres/.bash_profile'
+        line: 'export PATH=$PATH:/usr/pgsql-{{ pg_version }}/bin'
+        insertafter: EOF
+      become_user: postgres
+
+  handlers:
+    - name: restart rsyslog
+      service:
+        name: rsyslog
+        state: restarted
