@@ -123,12 +123,11 @@
         - .bashrc
       when: not register_bash_profile.stat.exists
 
-    - name: Add PG binaries to PATH in .bash_profile
-      ansible.builtin.lineinfile:
-        path: '/home/postgres/.bash_profile'
-        line: 'export PATH=$PATH:/usr/pgsql-{{ pg_version }}/bin'
-        insertafter: EOF
-      become_user: postgres
+    - name: Add PG binaries to system-wide PATH
+      ansible.builtin.copy:
+        dest: /etc/profile.d/postgres.sh
+        content: 'export PATH=$PATH:/usr/pgsql-{{ pg_version }}/bin\n'
+        mode: '0644'
 
   handlers:
     - name: restart rsyslog
