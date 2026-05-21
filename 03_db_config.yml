@@ -1,0 +1,41 @@
+---
+- name: Restarting the service
+  service:
+    name: postgresql-{{ pg_version }}
+    enabled: true
+    state: restarted
+  become: yes
+  register: service_res
+
+- name: set error message
+  set_fact:
+    hdnErrorDescription_awx: "Failed to start PostgreSQL service post deployment"
+  when: service_res is failed
+
+- name: "Fail the task as the certificate is not deployed"
+  fail:
+    msg: failed to restart the service
+  when: service_res is failed
+
+- name: change mode of postgresql.conf
+  become: true
+  file:
+    path: "/u01/{{ cluster_name }}/pgdata/postgresql.conf"
+    mode: '0755'
+
+- name: create path for table space
+  become: true
+  file:
+    path: "/u01/{{ cluster_name }}/{{ db_name }}/TBS01"
+    state: directory
+    owner: postgres
+    group: postgres
+    recurse: yes
+    mode: '0775'
+
+- name: run script createdb role
+  become_user: postgres
+  become: true
+  shell: "./pg_createdb_role_grant_privs.sh {{ db_name }} {{ schema_name | lower }} {{ cluster_name }} /u01/{{ cluster_name }}/{{ db_name }}/TBS01"
+  args:
+    chdir: "/home/postgres/bin"

@@ -1,0 +1,23 @@
+---
+
+- name: Copy SQL script to target node
+  template:
+    src: wal_backup_query.sql
+    dest: /home/postgres/bin/wal_backup_query.sql
+    mode: '0775'
+  become: true
+  become_user: postgres
+
+- name: execute edb user and permission creation script
+  become_user: postgres
+  become: true
+  shell: psql -f /home/postgres/bin/wal_backup_query.sql
+
+- name: restarting postgresql
+  service:
+    name: postgresql-{{ pg_version }}.service
+    enabled: yes
+    state: restarted
+  become: yes
+  register: service_out
+``

@@ -1,0 +1,41 @@
+---
+
+- name: setting fact for dc1 variables
+  set_fact:
+    cohesity_url_dc1: "chzahcohclp01"
+    target_hostname_dc1: "{{ item.hostname }}"
+    dc_val1: "{{ item.dc }}"
+  when: item.vc == "VC1" and item.dc == "DC1"
+  loop: "{{ my_cloud_input }}"
+
+- name: setting fact for dc2 variables
+  set_fact:
+    cohesity_url_dc2: "chzahcohclp02"
+    target_hostname_dc2: "{{ item.hostname }}"
+    dc_val2: "{{ item.dc }}"
+  when: item.vc == "VC2" or item.dc == "DC2"
+  loop: "{{ my_cloud_input }}"
+
+- name: include pgsql file for dc1
+  include_tasks: 06-01_pgsql_backup.yml
+  vars:
+    cohesity_url: "{{ cohesity_url_dc1 | upper }}"
+    vlan: "{{ vlanID }}"
+    nfs_view_name: "PGSQL-SA-NFS_{{ target_hostname_dc1 }}_{{ cluster_name }}"
+    view_name: "{{ nfs_view_name }}"
+    host: "{{ target_host }}"
+    dc: "{{ dc_val1 }}"
+    instance_name: "{{ cluster_name }}"
+  when: target_hostname_dc1 | length != 0
+
+- name: include pgsql file for dc2
+  include_tasks: 06-01_pgsql_backup.yml
+  vars:
+    cohesity_url: "{{ cohesity_url_dc2 | upper }}"
+    vlan: "{{ vlanID }}"
+    nfs_view_name: "PGSQL-SA-NFS_{{ target_hostname_dc2 }}_{{ cluster_name }}"
+    view_name: "{{ nfs_view_name }}"
+    host: "{{ target_host }}"
+    dc: "{{ dc_val2 }}"
+    instance_name: "{{ cluster_name }}"
+  when: target_hostname_dc2 | length != 0
