@@ -28,25 +28,25 @@
         group: postgres
         skeleton: /etc/skel
 
-  #   # 2. FIREWALL & SECURITY
-  #   # Instead of disabling, we allow the DB port to keep it secure
-  #   - name: Ensure firewalld is running
-  #     service:
-  #       name: firewalld
-  #       state: started
-  #       enabled: yes
+    # 2. FIREWALL & SECURITY
+    # Instead of disabling, we allow the DB port to keep it secure
+    - name: Ensure firewalld is running
+      service:
+        name: firewalld
+        state: started
+        enabled: yes
 
-  #   - name: Allow PostgreSQL port (5432)
-  #     firewalld:
-  #       port: 5432/tcp
-  #       permanent: yes
-  #       state: enabled
-  #       immediate: yes
+    - name: Allow PostgreSQL port (5432)
+      firewalld:
+        port: 5432/tcp
+        permanent: yes
+        state: enabled
+        immediate: yes
 
-  #   - name: Change SELinux to permissive
-  #     selinux:
-  #       policy: targeted
-  #       state: permissive
+    - name: Change SELinux to permissive
+      selinux:
+        policy: targeted
+        state: permissive
 
   #   # 3. STORAGE & LVM MANAGEMENT (Optimized Check and Extend)
   #   # This replaces the shell/grep/awk commands with a single idempotent module
