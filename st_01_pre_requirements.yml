@@ -67,27 +67,27 @@
         resizefs: yes
       ignore_errors: true
 
-  #   # 4. DIRECTORY STRUCTURE
-  #   - name: Create u01 and set ownership
-  #     ansible.builtin.file:
-  #       path: /u01
-  #       state: directory
-  #       owner: postgres
-  #       group: postgres
-  #       mode: '0755'
+    # 4. DIRECTORY STRUCTURE
+    - name: Create u01 and set ownership
+      ansible.builtin.file:
+        path: /u01
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0755'
 
-  #   - name: Create directory structure for PG Data and Archive
-  #     ansible.builtin.file:
-  #       path: "{{ item }}"
-  #       state: directory
-  #       mode: '0700'
-  #       owner: postgres
-  #       group: postgres
-  #       recurse: yes
-  #     with_items:
-  #       - "/u01/{{ cluster_name }}/archive"
-  #       - "/u01/{{ cluster_name }}/pgdata"
-  #       - "/home/postgres/bin/cfg"
+    - name: Create directory structure for PG Data and Archive
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0700'
+        owner: postgres
+        group: postgres
+        recurse: yes
+      with_items:
+        - "/u01/{{ cluster_name }}/archive"
+        - "/u01/{{ cluster_name }}/pgdata"
+        - "/home/postgres/bin/cfg"
 
   #   # 5. OS TUNING & LOGGING
   #   - name: Update rsyslog for PostgreSQL
