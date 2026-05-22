@@ -1,0 +1,65 @@
+---
+- name: PostgreSQL {{ pg_version }} PGDG Installation
+  hosts: all
+  become: true
+  vars:
+    pg_version: "17"
+    pg_data_path: "/u01/main/pgdata"  # The path created in pre-reqs
+
+  tasks:
+    # 1. INSTALL REPOSITORY
+    - name: Install PostgreSQL {{ pg_version }} Repo RPM
+      dnf:
+        name: "https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
+        state: present
+        disable_gpg_check: yes
+
+    # 2. DISABLE DEFAULT MODULE
+    - name: Disable default RHEL postgresql module
+      shell: "dnf -qy module disable postgresql"
+      args:
+        warn: false
+
+    # 3. INSTALL PACKAGES (Dependencies are handled automatically by DNF)
+    - name: Install PostgreSQL {{ pg_version }} Server and Contrib
+      dnf:
+        name:
+          - "postgresql{{ pg_version }}-server"
+          - "postgresql{{ pg_version }}-contrib"
+          - "python3-psycopg2" # Needed for Ansible to manage DB later
+          - "libxslt"          # Standard RHEL package
+        state: present
+
+    # 4. INITIALIZE DATABASE
+    # check if PG_VERSION exists so we don't accidentally wipe an existing DB
+    - name: Check if database is already initialized
+      stat:
+        path: "{{ pg_data_path }}/PG_VERSION"
+      register: pg_data_exists
+
+    - name: Initialize PostgreSQL {{ pg_version }} Database
+      command: "/usr/pgsql-{{ pg_version }}/bin/postgresql-{{ pg_version }}-setup initdb"
+      environment:
+        PGDATA: "{{ pg_data_path }}"
+      when: not pg_data_exists.stat.exists
+
+    # 5. CONFIGURE SYSTEMD (To use custom /u01 path)
+    - name: Create Systemd override directory
+      file:
+        path: "/etc/systemd/system/postgresql-{{ pg_version }}.service.d"
+        state: directory
+
+    - name: Point Systemd to custom PGDATA path
+      copy:
+        dest: "/etc/systemd/system/postgresql-{{ pg_version }}.service.d/override.conf"
+        content: |
+          [Service]
+          Environment=PGDATA={{ pg_data_path }}
+
+    # 6. START AND ENABLE
+    - name: Reload systemd, enable and start PostgreSQL
+      systemd:
+        name: "postgresql-{{ pg_version }}"
+        state: started
+        enabled: yes
+        daemon_reload: yes
