@@ -16,9 +16,7 @@
 
     # 2. DISABLE DEFAULT MODULE
     - name: Disable default RHEL postgresql module
-      command: "dnf -qy module disable postgresql"
-      args:
-        warn: false
+      command: dnf -qy module disable postgresql
 
     # 3. INSTALL PACKAGES (Dependencies are handled automatically by DNF)
     - name: Install PostgreSQL {{ pg_version }} Server and Contrib
