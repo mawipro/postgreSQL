@@ -29,7 +29,25 @@
           - "libxslt"          # Standard RHEL package
         state: present
 
-    # 4. INITIALIZE DATABASE
+    # 4. CONFIGURE SYSTEMD (To use custom /u01 path)
+    # This must happen BEFORE initdb because postgresql-setup reads PGDATA from systemd
+    - name: Create Systemd override directory
+      file:
+        path: "/etc/systemd/system/postgresql-{{ pg_version }}.service.d"
+        state: directory
+
+    - name: Point Systemd to custom PGDATA path
+      copy:
+        dest: "/etc/systemd/system/postgresql-{{ pg_version }}.service.d/override.conf"
+        content: |
+          [Service]
+          Environment=PGDATA={{ pg_data_path }}
+
+    - name: Reload systemd to apply override
+      systemd:
+        daemon_reload: yes
+
+    # 5. INITIALIZE DATABASE
     # check if PG_VERSION exists so we don't accidentally wipe an existing DB
     - name: Check if database is already initialized
       stat:
@@ -42,19 +60,6 @@
         PGDATA: "{{ pg_data_path }}"
         PGSETUP_INITDB_OPTIONS: "-X /u01/{{ cluster_name }}/pgwal"
       when: not pg_data_exists.stat.exists
-
-    # 5. CONFIGURE SYSTEMD (To use custom /u01 path)
-    - name: Create Systemd override directory
-      file:
-        path: "/etc/systemd/system/postgresql-{{ pg_version }}.service.d"
-        state: directory
-
-    - name: Point Systemd to custom PGDATA path
-      copy:
-        dest: "/etc/systemd/system/postgresql-{{ pg_version }}.service.d/override.conf"
-        content: |
-          [Service]
-          Environment=PGDATA={{ pg_data_path }}
 
     # 6. START AND ENABLE
     - name: Reload systemd, enable and start PostgreSQL
