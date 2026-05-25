@@ -4,7 +4,8 @@
   become: true
   vars:
     pg_version: "17"
-    pg_data_path: "/u01/main/pgdata"  # The path created in pre-reqs
+    cluster_name: "main"
+    pg_data_path: "/u01/{{ cluster_name }}/pgdata"  # The path created in pre-reqs
 
   tasks:
     # 1. INSTALL REPOSITORY
@@ -39,6 +40,7 @@
       command: "/usr/pgsql-{{ pg_version }}/bin/postgresql-{{ pg_version }}-setup initdb"
       environment:
         PGDATA: "{{ pg_data_path }}"
+        PGSETUP_INITDB_OPTIONS: "-X /u01/{{ cluster_name }}/pgwal"
       when: not pg_data_exists.stat.exists
 
     # 5. CONFIGURE SYSTEMD (To use custom /u01 path)
@@ -61,3 +63,32 @@
         state: started
         enabled: yes
         daemon_reload: yes
+
+    # 7. CONFIGURE TEMP TABLESPACE
+    - name: Check if Temp Tablespace exists
+      command: >
+        psql -tAc "SELECT 1 FROM pg_tablespace WHERE spcname = 'pgtemp';"
+      become: true
+      become_user: postgres
+      register: temp_ts_exists
+      changed_when: false
+
+    - name: Create Temp Tablespace
+      command: >
+        psql -c "CREATE TABLESPACE pgtemp LOCATION '/u01/{{ cluster_name }}/pgtemp';"
+      become: true
+      become_user: postgres
+      when: temp_ts_exists.stdout != "1"
+
+    - name: Set Temp Tablespace in postgresql.conf
+      ansible.builtin.lineinfile:
+        path: "{{ pg_data_path }}/postgresql.conf"
+        regexp: '^#?temp_tablespaces\s*='
+        line: "temp_tablespaces = 'pgtemp'"
+      notify: reload postgresql
+
+  handlers:
+    - name: reload postgresql
+      systemd:
+        name: "postgresql-{{ pg_version }}"
+        state: reloaded
