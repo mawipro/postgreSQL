@@ -1,0 +1,109 @@
+---
+- name: PostgreSQL {{ pg_version }} Database Configuration
+  hosts: rhel_servers
+  become: true
+  vars:
+    pg_version: "17"
+    cluster_name: "main"
+    # These should be passed via extra-vars at runtime. Defaults provided here.
+    db_name: "app_db"
+    schema_name: "app_schema"
+    pg_data_path: "/u01/{{ cluster_name }}/pgdata"
+
+  tasks:
+    # 1. SERVICE RESTART & ERROR HANDLING
+    - name: Restarting the PostgreSQL service
+      ansible.builtin.systemd:
+        name: "postgresql-{{ pg_version }}"
+        enabled: true
+        state: restarted
+      register: service_res
+      ignore_errors: true
+
+    - name: Set error message for AWX
+      ansible.builtin.set_fact:
+        hdnErrorDescription_awx: "Failed to start PostgreSQL service post deployment"
+      when: service_res is failed
+
+    - name: Fail the task as the service did not restart
+      ansible.builtin.fail:
+        msg: "Failed to restart the PostgreSQL service"
+      when: service_res is failed
+
+    # 2. POSTGRESQL.CONF PERMISSIONS
+    - name: Ensure postgresql.conf has correct permissions
+      ansible.builtin.file:
+        path: "{{ pg_data_path }}/postgresql.conf"
+        mode: '0644'
+        owner: postgres
+        group: postgres
+
+    # 3. TABLESPACE ROUTING (Physical LVM -> Logical)
+    # We create the tablespace directory on the data disk to avoid filling the root volume
+    - name: Create Physical Tablespace directory on Data LVM
+      ansible.builtin.file:
+        path: "/opt/app1/{{ cluster_name }}_{{ db_name }}_TBS01"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0700'
+
+    - name: Ensure Logical Database directory exists
+      ansible.builtin.file:
+        path: "/u01/{{ cluster_name }}/{{ db_name }}"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0755'
+
+    - name: Create Symlink for Tablespace routing
+      ansible.builtin.file:
+        src: "/opt/app1/{{ cluster_name }}_{{ db_name }}_TBS01"
+        dest: "/u01/{{ cluster_name }}/{{ db_name }}/TBS01"
+        state: link
+        owner: postgres
+        group: postgres
+
+    # # 4. DATABASE INITIALIZATION (Replacing bash script)
+    # - name: Create PostgreSQL Application Role
+    #   community.postgresql.postgresql_user:
+    #     name: "{{ db_name }}_user"
+    #     password: "ChangeMe123" # Default password, you can externalize this
+    #     state: present
+    #   become: true
+    #   become_user: postgres
+
+    # - name: Create Tablespace inside PostgreSQL
+    #   community.postgresql.postgresql_tablespace:
+    #     name: "{{ db_name }}_tbs"
+    #     location: "/u01/{{ cluster_name }}/{{ db_name }}/TBS01"
+    #     owner: "{{ db_name }}_user"
+    #   become: true
+    #   become_user: postgres
+
+    # - name: Create Database
+    #   community.postgresql.postgresql_db:
+    #     name: "{{ db_name }}"
+    #     owner: "{{ db_name }}_user"
+    #     tablespace: "{{ db_name }}_tbs"
+    #   become: true
+    #   become_user: postgres
+
+    # - name: Create Schema
+    #   community.postgresql.postgresql_schema:
+    #     name: "{{ schema_name | lower }}"
+    #     database: "{{ db_name }}"
+    #     owner: "{{ db_name }}_user"
+    #   become: true
+    #   become_user: postgres
+
+    # - name: Grant Privileges to Role
+    #   community.postgresql.postgresql_privs:
+    #     db: "{{ db_name }}"
+    #     schema: "{{ schema_name | lower }}"
+    #     objs: ALL_IN_SCHEMA
+    #     privs: ALL
+    #     type: table
+    #     role: "{{ db_name }}_user"
+    #   become: true
+    #   become_user: postgres
