@@ -42,7 +42,7 @@
     # We create the tablespace directory on the data disk to avoid filling the root volume
     - name: Create Physical Tablespace directory on Data LVM
       ansible.builtin.file:
-        path: "/opt/app1/{{ cluster_name }}_{{ db_name }}_TBS01"
+        path: "/u01/stead/stead601/{{ cluster_name }}_{{ db_name }}_TBS01"
         state: directory
         owner: postgres
         group: postgres
@@ -58,7 +58,7 @@
 
     - name: Create Symlink for Tablespace routing
       ansible.builtin.file:
-        src: "/opt/app1/{{ cluster_name }}_{{ db_name }}_TBS01"
+        src: "/u01/stead/stead601/{{ cluster_name }}_{{ db_name }}_TBS01"
         dest: "/u01/{{ cluster_name }}/{{ db_name }}/TBS01"
         state: link
         owner: postgres
