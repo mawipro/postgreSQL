@@ -50,13 +50,15 @@
         state: permissive
 
     # 3. STORAGE & LVM MANAGEMENT (Check Mounts)
-    - name: Ensure /opt/app1 and /opt/app2 are mounted/exist
+    - name: Ensure specific PostgreSQL mount points exist
       ansible.builtin.stat:
         path: "{{ item }}"
       register: mount_points
-      with_items:
-        - /opt/app1
-        - /opt/app2
+      loop:
+        - /u01/app/postgres
+        - /u01/stead/pgdata
+        - /u01/stead/stead601
+        - /u01/stead/archive
 
     - name: Assert mount points exist
       ansible.builtin.assert:
@@ -64,9 +66,23 @@
           - item.stat.exists
           - item.stat.isdir
         fail_msg: "Mount point {{ item.item }} does not exist or is not a directory."
-      with_items: "{{ mount_points.results }}"
+      loop: "{{ mount_points.results }}"
 
     # 4. DIRECTORY STRUCTURE & SYMLINKS
+    - name: Create PostgreSQL Binaries target directory
+      ansible.builtin.file:
+        path: /u01/app/postgres/17
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+
+    - name: Create PostgreSQL package symlink
+      ansible.builtin.file:
+        src: /u01/app/postgres/17
+        dest: /usr/pgsql-17
+        state: link
+
     - name: Create physical directories for PostgreSQL on LVMs
       ansible.builtin.file:
         path: "{{ item }}"
@@ -74,11 +90,12 @@
         mode: '0700'
         owner: postgres
         group: postgres
-      with_items:
-        - /opt/app1/pgdata
-        - /opt/app1/pgtemp
-        - /opt/app2/pgwal
-        - /opt/app2/pgarchive
+      loop:
+        - /u01/stead/pgdata/data
+        - /u01/stead/pgdata/pgtemp
+        - /u01/stead/pgdata/pgwal
+        - /u01/stead/archive/pgarchive
+        - /u01/stead/archive/pglog
 
     - name: Create logical u01 structure
       ansible.builtin.file:
@@ -96,11 +113,11 @@
         state: link
         owner: postgres
         group: postgres
-      with_items:
-        - { src: '/opt/app1/pgdata', dest: '/u01/{{ cluster_name }}/pgdata' }
-        - { src: '/opt/app1/pgtemp', dest: '/u01/{{ cluster_name }}/pgtemp' }
-        - { src: '/opt/app2/pgwal', dest: '/u01/{{ cluster_name }}/pgwal' }
-        - { src: '/opt/app2/pgarchive', dest: '/u01/{{ cluster_name }}/pgarchive' }
+      loop:
+        - { src: '/u01/stead/pgdata/data', dest: '/u01/{{ cluster_name }}/pgdata' }
+        - { src: '/u01/stead/pgdata/pgtemp', dest: '/u01/{{ cluster_name }}/pgtemp' }
+        - { src: '/u01/stead/pgdata/pgwal', dest: '/u01/{{ cluster_name }}/pgwal' }
+        - { src: '/u01/stead/archive/pgarchive', dest: '/u01/{{ cluster_name }}/pgarchive' }
 
     - name: Create scripts directory
       ansible.builtin.file:
@@ -115,7 +132,7 @@
     - name: Update rsyslog for PostgreSQL
       ansible.builtin.copy:
         content: |
-          local0.*    /var/log/postgres.log
+          local0.*    /u01/stead/archive/pglog/postgres.log
         dest: /etc/rsyslog.d/postgresql.conf
         mode: '0644'
       notify: restart rsyslog
@@ -140,7 +157,7 @@
         remote_src: yes
         owner: postgres
         group: postgres
-      with_items:
+      loop:
         - .bash_profile
         - .bashrc
       when: not register_bash_profile.stat.exists
