@@ -1,0 +1,30 @@
+---
+- name: PostgreSQL Post-Installation Configuration
+  hosts: rhel_servers
+  become: true
+
+  tasks:
+    ########## Enabling Log rotation ##########
+
+    - name: Install the latest version of logrotate
+      ansible.builtin.dnf:
+        name: logrotate
+        state: present
+
+    - name: deploy the log rotation for pgsql
+      ansible.builtin.template:
+        src: "logrotate_conf.j2"
+        dest: "/etc/logrotate.d/postgres"
+        mode: "0644"
+
+    - name: update permission for /u01/stead/archive/pglog folder
+      ansible.builtin.file:
+        path: /u01/stead/archive/pglog/
+        mode: '0750'
+        state: directory
+        owner: postgres
+        group: postgres
+        recurse: true
+
+    - name: Execute ondemand log rotation for postgres
+      ansible.builtin.command: logrotate -f /etc/logrotate.d/postgres

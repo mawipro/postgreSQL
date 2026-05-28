@@ -1,0 +1,11 @@
+/u01/stead/archive/pglog/*.log {
+    su postgres postgres
+    daily
+    rotate 14
+    missingok
+    compress
+    delaycompress
+    notifempty
+    create 0640 postgres postgres
+    copytruncate
+}
